@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../data/providers/auth_provider.dart';
 import '../../../data/providers/group_provider.dart';
 import '../../../data/models/group_model.dart';
 
@@ -52,6 +53,13 @@ class _GroupScreenState extends ConsumerState<GroupScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Grupos'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Sair',
+            onPressed: () => ref.read(authProvider.notifier).logout(),
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
@@ -67,7 +75,9 @@ class _GroupScreenState extends ConsumerState<GroupScreen>
           _MyGroupsTab(
             groups: groupState.groups,
             isLoading: groupState.isLoading,
+            error: groupState.error,
             onEnterMap: _onGroupEntered,
+            onRetry: () => ref.read(groupProvider.notifier).loadGroups(),
           ),
           _CreateGroupTab(
             formKey: _createFormKey,
@@ -108,18 +118,40 @@ class _GroupScreenState extends ConsumerState<GroupScreen>
 class _MyGroupsTab extends StatelessWidget {
   final List<GroupModel> groups;
   final bool isLoading;
+  final String? error;
   final VoidCallback onEnterMap;
+  final VoidCallback onRetry;
 
   const _MyGroupsTab({
     required this.groups,
     required this.isLoading,
+    required this.error,
     required this.onEnterMap,
+    required this.onRetry,
   });
 
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
       return const Center(child: CircularProgressIndicator());
+    }
+    if (error != null && groups.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 64, color: Colors.red),
+            const SizedBox(height: 16),
+            Text(error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red)),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Tentar novamente'),
+            ),
+          ],
+        ),
+      );
     }
     if (groups.isEmpty) {
       return const Center(
