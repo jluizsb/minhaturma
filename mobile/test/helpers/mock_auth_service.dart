@@ -56,6 +56,9 @@ class MockAuthService implements AuthService {
   @override
   Future<bool> isLoggedIn() async => _isLoggedIn;
 
+  @override
+  Future<bool> validateAndRefreshToken() async => _isLoggedIn;
+
   // ── Cadastro ─────────────────────────────────────────────────────
 
   @override

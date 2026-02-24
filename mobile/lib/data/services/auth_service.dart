@@ -56,6 +56,47 @@ class AuthService {
     return token != null && token.isNotEmpty;
   }
 
+  /// Valida o access token chamando /auth/me.
+  /// Se expirado (401), tenta renovar com o refresh token.
+  /// Retorna true se a sessão é válida (e tokens estão atualizados).
+  /// Retorna false e limpa os tokens se nenhuma renovação for possível.
+  Future<bool> validateAndRefreshToken() async {
+    final token = await getAccessToken();
+    if (token == null) return false;
+
+    try {
+      await _dio.get(
+        '/auth/me',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      return true;
+    } on DioException catch (e) {
+      if (e.response?.statusCode != 401) return false;
+
+      // Access token expirado — tenta renovar com refresh token
+      final refreshToken = await getRefreshToken();
+      if (refreshToken == null) {
+        await clearTokens();
+        return false;
+      }
+
+      try {
+        final r = await _dio.post(
+          '/auth/refresh',
+          data: {'refresh_token': refreshToken},
+        );
+        await saveTokens(
+          r.data['access_token'] as String,
+          r.data['refresh_token'] as String,
+        );
+        return true;
+      } catch (_) {
+        await clearTokens();
+        return false;
+      }
+    }
+  }
+
   // ── Cadastro ──────────────────────────────────────────
 
   Future<AuthUser> register(String name, String email, String password) async {

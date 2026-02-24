@@ -52,13 +52,22 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       final loggedIn = await _service.isLoggedIn();
       if (!mounted) return;
-      if (loggedIn) {
-        final user = await _service.getUser();
-        if (!mounted) return;
-        state = AuthState(isLoggedIn: true, isLoading: false, user: user);
-      } else {
+      if (!loggedIn) {
         state = const AuthState(isLoggedIn: false, isLoading: false);
+        return;
       }
+
+      // Valida o token (e renova se expirado)
+      final isValid = await _service.validateAndRefreshToken();
+      if (!mounted) return;
+      if (!isValid) {
+        state = const AuthState(isLoggedIn: false, isLoading: false);
+        return;
+      }
+
+      final user = await _service.getUser();
+      if (!mounted) return;
+      state = AuthState(isLoggedIn: true, isLoading: false, user: user);
     } catch (_) {
       if (!mounted) return;
       state = const AuthState(isLoggedIn: false, isLoading: false);

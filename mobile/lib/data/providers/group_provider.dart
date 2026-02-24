@@ -11,7 +11,7 @@ import '../services/group_service.dart';
 final groupServiceProvider = Provider<GroupService>((ref) {
   final dio = Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl));
 
-  // Interceptor para adicionar token em todas as requisições
+  // Interceptor: adiciona token + trata 401 fazendo logout
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) async {
@@ -20,6 +20,13 @@ final groupServiceProvider = Provider<GroupService>((ref) {
           options.headers['Authorization'] = 'Bearer $accessToken';
         }
         handler.next(options);
+      },
+      onError: (error, handler) {
+        if (error.response?.statusCode == 401) {
+          // Token expirado durante a sessão → logout
+          ref.read(authProvider.notifier).logout();
+        }
+        handler.next(error);
       },
     ),
   );
@@ -118,6 +125,7 @@ class GroupNotifier extends StateNotifier<GroupState> {
 
   String _msg(Exception e) {
     final s = e.toString();
+    if (s.contains('401')) return 'Sessão expirada. Faça login novamente.';
     if (s.contains('404')) return 'Grupo não encontrado.';
     if (s.contains('400')) return 'Você já é membro deste grupo.';
     if (s.contains('SocketException') || s.contains('Connection refused')) {
