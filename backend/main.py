@@ -5,6 +5,13 @@ from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.core.database import engine, Base
+
+# Importa todos os models para que o SQLAlchemy possa configurar os mappers
+import app.models.user       # noqa: F401
+import app.models.group      # noqa: F401
+import app.models.location   # noqa: F401
+import app.models.message    # noqa: F401
+
 from app.api.v1 import auth, groups, locations, messages, sos
 
 

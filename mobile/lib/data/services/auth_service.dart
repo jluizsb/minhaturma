@@ -1,16 +1,20 @@
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../../config/app_config.dart';
+import '../models/auth_model.dart';
 
-/// Serviço central de autenticação.
-/// Suporta: e-mail/senha, Google, Facebook, Apple, Microsoft.
+/// Serviço central de autenticação (e-mail/senha).
+/// Login social fica reservado para implementação futura.
 class AuthService {
   final Dio _dio;
   final FlutterSecureStorage _storage;
+
+  static const _keyAccess = 'access_token';
+  static const _keyRefresh = 'refresh_token';
+  static const _keyUser = 'auth_user';
 
   AuthService()
       : _dio = Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl)),
@@ -19,72 +23,87 @@ class AuthService {
   // ── Tokens ────────────────────────────────────────────
 
   Future<void> saveTokens(String access, String refresh) async {
-    await _storage.write(key: 'access_token',  value: access);
-    await _storage.write(key: 'refresh_token', value: refresh);
+    await Future.wait([
+      _storage.write(key: _keyAccess, value: access),
+      _storage.write(key: _keyRefresh, value: refresh),
+    ]);
   }
 
-  Future<String?> getAccessToken() => _storage.read(key: 'access_token');
+  Future<String?> getAccessToken() => _storage.read(key: _keyAccess);
+  Future<String?> getRefreshToken() => _storage.read(key: _keyRefresh);
 
-  Future<void> clearTokens() async {
-    await _storage.deleteAll();
+  Future<void> clearTokens() => _storage.deleteAll();
+
+  // ── User persistido ───────────────────────────────────
+
+  Future<void> saveUser(AuthUser user) =>
+      _storage.write(key: _keyUser, value: jsonEncode(user.toJson()));
+
+  Future<AuthUser?> getUser() async {
+    final raw = await _storage.read(key: _keyUser);
+    if (raw == null) return null;
+    try {
+      return AuthUser.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ── Estado de sessão ──────────────────────────────────
+
+  Future<bool> isLoggedIn() async {
+    final token = await getAccessToken();
+    return token != null && token.isNotEmpty;
+  }
+
+  // ── Cadastro ──────────────────────────────────────────
+
+  Future<AuthUser> register(String name, String email, String password) async {
+    final response = await _dio.post('/auth/register', data: {
+      'name': name,
+      'email': email,
+      'password': password,
+    });
+    final user = AuthUser.fromJson(response.data['user'] as Map<String, dynamic>);
+    await saveTokens(
+      response.data['access_token'] as String,
+      response.data['refresh_token'] as String,
+    );
+    await saveUser(user);
+    return user;
   }
 
   // ── Login com e-mail e senha ──────────────────────────
 
-  Future<void> loginWithEmail(String email, String password) async {
-    final response = await _dio.post('/auth/login', data: {
-      'username': email,
-      'password': password,
-    });
-    await saveTokens(response.data['access_token'], response.data['refresh_token']);
-  }
-
-  // ── Google ────────────────────────────────────────────
-
-  Future<void> loginWithGoogle() async {
-    final googleUser = await GoogleSignIn().signIn();
-    if (googleUser == null) return;
-    final auth = await googleUser.authentication;
-    await _socialLogin('google', auth.idToken!);
-  }
-
-  // ── Facebook ──────────────────────────────────────────
-
-  Future<void> loginWithFacebook() async {
-    final result = await FacebookAuth.instance.login();
-    if (result.status != LoginStatus.success) return;
-    await _socialLogin('facebook', result.accessToken!.tokenString);
-  }
-
-  // ── Apple ─────────────────────────────────────────────
-
-  Future<void> loginWithApple() async {
-    final credential = await SignInWithApple.getAppleIDCredential(
-      scopes: [AppleIDAuthorizationScopes.email, AppleIDAuthorizationScopes.fullName],
+  Future<AuthUser> loginWithEmail(String email, String password) async {
+    final response = await _dio.post(
+      '/auth/login',
+      data: 'username=${Uri.encodeComponent(email)}&password=${Uri.encodeComponent(password)}',
+      options: Options(contentType: 'application/x-www-form-urlencoded'),
     );
-    await _socialLogin('apple', credential.identityToken!);
+    final user = AuthUser.fromJson(response.data['user'] as Map<String, dynamic>);
+    await saveTokens(
+      response.data['access_token'] as String,
+      response.data['refresh_token'] as String,
+    );
+    await saveUser(user);
+    return user;
   }
 
-  // ── Microsoft ─────────────────────────────────────────
-  // Requer configuração do MSAL no azure portal
-  Future<void> loginWithMicrosoft(String msalToken) async {
-    await _socialLogin('microsoft', msalToken);
-  }
-
-  // ── Helper interno ────────────────────────────────────
-
-  Future<void> _socialLogin(String provider, String token) async {
-    final response = await _dio.post('/auth/social-login', data: {
-      'provider': provider,
-      'token': token,
-    });
-    await saveTokens(response.data['access_token'], response.data['refresh_token']);
-  }
+  // ── Logout ────────────────────────────────────────────
 
   Future<void> logout() async {
-    await _dio.post('/auth/logout');
+    final token = await getAccessToken();
+    if (token != null) {
+      try {
+        await _dio.post(
+          '/auth/logout',
+          options: Options(headers: {'Authorization': 'Bearer $token'}),
+        );
+      } catch (_) {
+        // Ignora erros de rede — tokens serão limpos localmente de qualquer forma
+      }
+    }
     await clearTokens();
-    await GoogleSignIn().signOut();
-    await FacebookAuth.instance.logOut();
   }
 }

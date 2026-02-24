@@ -1,64 +1,64 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../config/app_config.dart';
 import '../../../config/theme.dart';
-import '../../../data/services/location_service.dart';
+import '../../../data/providers/auth_provider.dart';
 
-class MapScreen extends StatefulWidget {
+class MapScreen extends ConsumerWidget {
   const MapScreen({super.key});
 
   @override
-  State<MapScreen> createState() => _MapScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authProvider).user;
+    final hasMapKey = AppConfig.googleMapsApiKey.isNotEmpty &&
+        AppConfig.googleMapsApiKey != 'placeholder';
 
-class _MapScreenState extends State<MapScreen> {
-  final _locationService = LocationService();
-  GoogleMapController? _mapController;
-  final Map<String, Marker> _markers = {};
-
-  static const LatLng _initialPosition = LatLng(-23.5505, -46.6333); // São Paulo
-
-  @override
-  void initState() {
-    super.initState();
-    _startTracking();
-  }
-
-  void _startTracking() async {
-    // TODO: obter groupId e userId do estado global (Riverpod)
-    await _locationService.startTracking('group-id', 'user-id');
-
-    _locationService.locationStream?.listen((data) {
-      // Atualiza marcadores dos membros recebidos via WebSocket
-      // TODO: parsear data e atualizar _markers no setState
-    });
-  }
-
-  @override
-  void dispose() {
-    _locationService.stopTracking();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('MinhaTurma'),
         actions: [
-          IconButton(icon: const Icon(Icons.chat), onPressed: () => context.go('/chat/group-id')),
-          IconButton(icon: const Icon(Icons.person), onPressed: () => context.go('/profile')),
+          IconButton(
+            icon: const Icon(Icons.chat),
+            onPressed: () => context.go('/chat/group-id'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.person),
+            onPressed: () => context.go('/profile'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () => ref.read(authProvider.notifier).logout(),
+          ),
         ],
       ),
-      body: GoogleMap(
-        onMapCreated: (ctrl) => _mapController = ctrl,
-        initialCameraPosition: const CameraPosition(target: _initialPosition, zoom: 14),
-        markers: _markers.values.toSet(),
-        myLocationEnabled: true,
-        myLocationButtonEnabled: true,
-        mapToolbarEnabled: false,
-      ),
+      body: hasMapKey
+          ? const Center(child: Text('Mapa (Google Maps)'))
+          : Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.map_outlined, size: 80, color: Colors.grey),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Olá, ${user?.name ?? 'usuário'}!',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Login realizado com sucesso.',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Mapa disponível após configurar\nGOOGLE_MAPS_API_KEY.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.go('/sos'),
         backgroundColor: AppTheme.danger,
