@@ -8,7 +8,14 @@ import 'config/theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+
+  // Firebase requer GoogleService-Info.plist (iOS) / google-services.json (Android)
+  // Será configurado quando o projeto Firebase for criado (passo 5)
+  try {
+    await Firebase.initializeApp();
+  } catch (_) {
+    // Ignora erro de inicialização em ambiente de desenvolvimento sem config Firebase
+  }
 
   runApp(
     const ProviderScope(
