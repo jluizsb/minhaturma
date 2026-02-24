@@ -1,0 +1,39 @@
+# ── Python / Backend ──────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+firebase-credentials.json
+
+# ── Flutter / Dart ────────────────────────────
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/build/
+mobile/.packages
+mobile/pubspec.lock
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/android/app/google-services.json
+mobile/ios/Pods/
+mobile/ios/GoogleService-Info.plist
+mobile/.idea/
+
+# ── Terraform ─────────────────────────────────
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.backup
+infra/terraform/*.tfvars
+infra/terraform/.terraform.lock.hcl
+
+# ── Geral ─────────────────────────────────────
+.DS_Store
+*.log
+*.tmp
+.idea/
+.vscode/
+node_modules/
