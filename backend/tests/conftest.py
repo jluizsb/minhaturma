@@ -31,8 +31,8 @@ TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 class FakeRedis:
     """
     Substituto em memória do Redis para testes.
-    Implementa apenas os métodos usados pela aplicação: exists e setex.
-    Não implementa TTL real — tokens blacklistados nunca expiram durante o teste.
+    Implementa os métodos usados pela aplicação: exists, setex, get, set.
+    Não implementa TTL real — chaves nunca expiram durante o teste.
     """
 
     def __init__(self) -> None:
@@ -43,6 +43,15 @@ class FakeRedis:
 
     async def setex(self, key: str, ttl: int, value: str) -> None:
         self._store[key] = value
+
+    async def get(self, key: str) -> str | None:
+        return self._store.get(key)
+
+    async def set(self, key: str, value: str, ex: int | None = None) -> None:
+        self._store[key] = value
+
+    async def delete(self, key: str) -> None:
+        self._store.pop(key, None)
 
 
 # ── Fixtures de banco de dados ────────────────────────────────────────────────
@@ -84,7 +93,7 @@ async def client(db_session: AsyncSession, fake_redis: FakeRedis):
 
     Overrides aplicados:
       - get_db  → session SQLite in-memory
-      - get_redis → FakeRedis (patch nos dois módulos que importam a função)
+      - get_redis → FakeRedis (patch nos módulos que importam a função)
     """
 
     async def override_get_db():
@@ -103,6 +112,7 @@ async def client(db_session: AsyncSession, fake_redis: FakeRedis):
     with (
         patch("app.api.v1.auth.get_redis", new=override_get_redis),
         patch("app.api.dependencies.get_redis", new=override_get_redis),
+        patch("app.api.v1.locations.get_redis", new=override_get_redis),
     ):
         async with AsyncClient(
             transport=ASGITransport(app=app),
@@ -111,3 +121,47 @@ async def client(db_session: AsyncSession, fake_redis: FakeRedis):
             yield ac
 
     app.dependency_overrides.clear()
+
+
+# ── Fixtures de grupo ─────────────────────────────────────────────────────────
+
+@pytest.fixture
+async def group_fixture(client):
+    """
+    Cria um usuário admin e um grupo, retornando (token_admin, group_data).
+    """
+    r = await client.post(
+        "/api/v1/auth/register",
+        json={"name": "Admin", "email": "admin@group.com", "password": "senha123"},
+    )
+    token = r.json()["access_token"]
+
+    r = await client.post(
+        "/api/v1/groups/",
+        json={"name": "Grupo Fixture", "description": "Criado para testes"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    return token, r.json()
+
+
+@pytest.fixture
+async def member_fixture(client, group_fixture):
+    """
+    Cria um segundo usuário e o adiciona ao grupo.
+    Retorna (token_admin, token_member, group_data).
+    """
+    token_admin, group = group_fixture
+
+    r = await client.post(
+        "/api/v1/auth/register",
+        json={"name": "Membro", "email": "membro@group.com", "password": "senha456"},
+    )
+    token_member = r.json()["access_token"]
+
+    await client.post(
+        "/api/v1/groups/join",
+        json={"invite_code": group["invite_code"]},
+        headers={"Authorization": f"Bearer {token_member}"},
+    )
+
+    return token_admin, token_member, group

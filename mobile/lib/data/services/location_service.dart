@@ -1,59 +1,94 @@
 import 'dart:async';
-import 'package:geolocator/geolocator.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
 import 'dart:convert';
 
+import 'package:geolocator/geolocator.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+
 import '../../config/app_config.dart';
+import '../models/location_model.dart';
 
 class LocationService {
   WebSocketChannel? _channel;
   StreamSubscription<Position>? _positionSubscription;
+  final StreamController<LocationModel> _locationController =
+      StreamController<LocationModel>.broadcast();
 
-  /// Solicita permissão e inicia o envio de localização em tempo real.
-  Future<void> startTracking(String groupId, String userId) async {
-    final permission = await _requestPermission();
-    if (!permission) return;
-
-    final wsUrl = AppConfig.apiBaseUrl
-        .replaceFirst('http', 'ws')
+  /// Conecta ao WebSocket com JWT via query param.
+  /// Requer que o usuário já seja membro do [groupId].
+  Future<void> connect(String token, String groupId) async {
+    final wsBase = AppConfig.apiBaseUrl
+        .replaceFirst('https://', 'wss://')
+        .replaceFirst('http://', 'ws://')
         .replaceFirst('/api/v1', '');
 
-    _channel = WebSocketChannel.connect(
-      Uri.parse('$wsUrl/api/v1/locations/ws/$groupId/$userId'),
+    final uri = Uri.parse(
+      '$wsBase/api/v1/locations/ws?token=${Uri.encodeComponent(token)}&group_id=${Uri.encodeComponent(groupId)}',
     );
+
+    _channel = WebSocketChannel.connect(uri);
+
+    _channel!.stream.listen(
+      (raw) {
+        try {
+          final data = jsonDecode(raw as String) as Map<String, dynamic>;
+          if (data['type'] == 'location_update') {
+            _locationController.add(LocationModel.fromJson(data));
+          }
+        } catch (_) {
+          // ignora mensagens malformadas
+        }
+      },
+      onDone: () {},
+      onError: (_) {},
+    );
+  }
+
+  /// Stream de posições recebidas via WebSocket (de todos os membros do grupo).
+  Stream<LocationModel> get stream => _locationController.stream;
+
+  /// Envia a posição atual pelo WebSocket.
+  void sendLocation(double lat, double lng) {
+    _channel?.sink.add(jsonEncode({
+      'lat': lat,
+      'lng': lng,
+      'ts': DateTime.now().millisecondsSinceEpoch / 1000.0,
+    }));
+  }
+
+  /// Inicia o rastreamento de GPS e envia posições via WebSocket.
+  Future<void> startTracking() async {
+    final hasPermission = await _requestPermission();
+    if (!hasPermission) return;
 
     _positionSubscription = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 10, // metros
+        distanceFilter: 10, // metros — throttle básico no cliente
       ),
-    ).listen((Position position) {
-      _channel?.sink.add(jsonEncode({
-        'latitude':  position.latitude,
-        'longitude': position.longitude,
-        'accuracy':  position.accuracy,
-        'speed':     position.speed,
-        'heading':   position.heading,
-      }));
-    });
+    ).listen((pos) => sendLocation(pos.latitude, pos.longitude));
   }
 
-  Stream<dynamic>? get locationStream => _channel?.stream;
-
-  void stopTracking() {
+  /// Para o rastreamento de GPS e fecha o WebSocket.
+  void disconnect() {
     _positionSubscription?.cancel();
+    _positionSubscription = null;
     _channel?.sink.close();
+    _channel = null;
   }
 
   Future<bool> _requestPermission() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) return false;
+    if (!await Geolocator.isLocationServiceEnabled()) return false;
 
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
     return permission == LocationPermission.always ||
-           permission == LocationPermission.whileInUse;
+        permission == LocationPermission.whileInUse;
+  }
+
+  void dispose() {
+    disconnect();
+    _locationController.close();
   }
 }
