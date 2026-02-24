@@ -27,15 +27,15 @@ dependencies:
   google_sign_in: ^6.2.1
   flutter_facebook_auth: ^7.0.1
   sign_in_with_apple: ^6.1.1
-  msal_flutter: ^1.0.2          # Microsoft
+  msal_flutter: ^2.0.1          # Microsoft
 
   # Localização
   geolocator: ^11.0.0
   geocoding: ^3.0.0
 
   # Firebase
-  firebase_core: ^2.30.1
-  firebase_messaging: ^14.9.1
+  firebase_core: ^3.13.0
+  firebase_messaging: ^15.2.4
 
   # Mídia
   image_picker: ^1.0.7
@@ -50,6 +50,9 @@ dependencies:
   flutter_svg: ^2.0.10+1
   lottie: ^3.1.0
   shimmer: ^3.0.0
+
+  # Navegação
+  go_router: ^14.0.0
 
   # Utilitários
   intl: ^0.19.0
