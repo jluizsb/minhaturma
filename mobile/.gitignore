@@ -1,3 +1,7 @@
 
 # FVM Version Cache
 .fvm/
+
+# Chaves de API (não commitar)
+ios/Flutter/GoogleMaps.xcconfig
+android/local.properties

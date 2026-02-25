@@ -102,6 +102,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 TextFormField(
                   controller: _passCtrl,
                   obscureText: !_showPass,
+                  autocorrect: false,
+                  enableSuggestions: false,
                   decoration: InputDecoration(
                     labelText: 'Senha',
                     prefixIcon: const Icon(Icons.lock),
@@ -122,6 +124,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 TextFormField(
                   controller: _confirmCtrl,
                   obscureText: !_showConfirm,
+                  autocorrect: false,
+                  enableSuggestions: false,
                   decoration: InputDecoration(
                     labelText: 'Confirmar senha',
                     prefixIcon: const Icon(Icons.lock_outline),

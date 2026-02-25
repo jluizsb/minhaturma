@@ -1,11 +1,9 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geolocator/geolocator.dart';
 
-import '../../../config/app_config.dart';
 import '../../../config/theme.dart';
 import '../../../data/providers/auth_provider.dart';
 import '../../../data/providers/group_provider.dart';
@@ -20,6 +18,9 @@ class MapScreen extends ConsumerStatefulWidget {
 
 class _MapScreenState extends ConsumerState<MapScreen> {
   GoogleMapController? _mapController;
+  bool _locationPermissionGranted = false;
+  MapType _mapType = MapType.normal;
+  bool _trafficEnabled = false;
 
   static const _defaultPosition = CameraPosition(
     target: LatLng(-23.5505, -46.6333), // São Paulo
@@ -29,7 +30,22 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _connect());
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _requestLocationPermission();
+      await _connect();
+    });
+  }
+
+  Future<void> _requestLocationPermission() async {
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (!mounted) return;
+    setState(() {
+      _locationPermissionGranted = permission == LocationPermission.always ||
+          permission == LocationPermission.whileInUse;
+    });
   }
 
   Future<void> _connect() async {
@@ -51,25 +67,26 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   @override
   void dispose() {
-    ref.read(locationProvider.notifier).disconnect();
+    // Captura o notifier antes de chamar super.dispose() para evitar
+    // uso de ref após o widget ser desmontado.
+    final locNotifier = ref.read(locationProvider.notifier);
     _mapController?.dispose();
     super.dispose();
+    locNotifier.disconnect();
   }
 
   Set<Marker> _buildMarkers(LocationState locState, String? myUserId) {
     final markers = <Marker>{};
 
-    // Marcador próprio (azul)
     if (locState.myPosition != null) {
       markers.add(Marker(
         markerId: const MarkerId('me'),
         position: LatLng(locState.myPosition!.lat, locState.myPosition!.lng),
-        infoWindow: InfoWindow(title: 'Você'),
+        infoWindow: const InfoWindow(title: 'Você'),
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
       ));
     }
 
-    // Marcadores de outros membros (hue derivado do userId)
     for (final entry in locState.members.entries) {
       final loc = entry.value;
       final hue = (loc.userId.hashCode.abs() % 360).toDouble();
@@ -84,7 +101,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     return markers;
   }
 
-  void _moveCameraToMe(LocationState locState) {
+  void _goToMyLocation(LocationState locState) {
     if (_mapController == null || locState.myPosition == null) return;
     _mapController!.animateCamera(
       CameraUpdate.newLatLng(
@@ -98,8 +115,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final user = ref.watch(authProvider).user;
     final groupState = ref.watch(groupProvider);
     final locState = ref.watch(locationProvider);
-    final hasMapKey = AppConfig.googleMapsApiKey.isNotEmpty &&
-        AppConfig.googleMapsApiKey != 'placeholder';
 
     return Scaffold(
       appBar: AppBar(
@@ -109,9 +124,15 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         actions: [
           if (locState.isConnected)
             const Padding(
-              padding: EdgeInsets.only(right: 8),
+              padding: EdgeInsets.only(right: 4),
               child: Icon(Icons.wifi, color: Colors.green, size: 18),
             ),
+          IconButton(
+            icon: const Icon(Icons.sos),
+            tooltip: 'SOS',
+            color: AppTheme.danger,
+            onPressed: () => context.push('/sos'),
+          ),
           IconButton(
             icon: const Icon(Icons.group),
             tooltip: 'Grupos',
@@ -137,60 +158,110 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           ),
         ],
       ),
-      body: hasMapKey
-          ? GoogleMap(
-              initialCameraPosition: _defaultPosition,
-              myLocationButtonEnabled: false,
-              zoomControlsEnabled: true,
-              markers: _buildMarkers(locState, user?.id),
-              onMapCreated: (controller) {
-                _mapController = controller;
-                _moveCameraToMe(locState);
-              },
-            )
-          : Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.map_outlined, size: 80, color: Colors.grey),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Olá, ${user?.name ?? 'usuário'}!',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Login realizado com sucesso.',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Mapa disponível após configurar\nGOOGLE_MAPS_API_KEY.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey, fontSize: 12),
-                  ),
-                  if (locState.isConnected) ...[
-                    const SizedBox(height: 16),
-                    const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.wifi, color: Colors.green, size: 16),
-                        SizedBox(width: 4),
-                        Text(
-                          'WebSocket conectado',
-                          style: TextStyle(color: Colors.green, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
+      body: Stack(
+        children: [
+          GoogleMap(
+            initialCameraPosition: _defaultPosition,
+            mapType: _mapType,
+            trafficEnabled: _trafficEnabled,
+            myLocationEnabled: _locationPermissionGranted,
+            myLocationButtonEnabled: false,
+            zoomControlsEnabled: false,
+            markers: _buildMarkers(locState, user?.id),
+            onMapCreated: (controller) {
+              _mapController = controller;
+              _goToMyLocation(locState);
+            },
+          ),
+          // Botões de controle (lado direito)
+          Positioned(
+            right: 12,
+            bottom: 40,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _MapIconButton(
+                  icon: Icons.my_location,
+                  tooltip: 'Minha localização',
+                  onPressed: () => _goToMyLocation(locState),
+                ),
+                const SizedBox(height: 8),
+                _MapIconButton(
+                  icon: Icons.add,
+                  tooltip: 'Aproximar',
+                  onPressed: () =>
+                      _mapController?.animateCamera(CameraUpdate.zoomIn()),
+                ),
+                const SizedBox(height: 4),
+                _MapIconButton(
+                  icon: Icons.remove,
+                  tooltip: 'Afastar',
+                  onPressed: () =>
+                      _mapController?.animateCamera(CameraUpdate.zoomOut()),
+                ),
+                const SizedBox(height: 8),
+                _MapIconButton(
+                  icon: Icons.satellite_alt,
+                  tooltip: _mapType == MapType.satellite
+                      ? 'Mapa normal'
+                      : 'Visão satélite',
+                  active: _mapType == MapType.satellite,
+                  onPressed: () => setState(() {
+                    _mapType = _mapType == MapType.satellite
+                        ? MapType.normal
+                        : MapType.satellite;
+                  }),
+                ),
+                const SizedBox(height: 4),
+                _MapIconButton(
+                  icon: Icons.traffic,
+                  tooltip: _trafficEnabled ? 'Ocultar tráfego' : 'Ver tráfego',
+                  active: _trafficEnabled,
+                  onPressed: () =>
+                      setState(() => _trafficEnabled = !_trafficEnabled),
+                ),
+              ],
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/sos'),
-        backgroundColor: AppTheme.danger,
-        icon: const Icon(Icons.sos),
-        label: const Text('SOS'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Botão quadrado estilo Google Maps. Quando [active] é true fica azul.
+class _MapIconButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onPressed;
+  final bool active;
+
+  const _MapIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+    this.active = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = active ? Colors.blue : Colors.white;
+    final fg = active ? Colors.white : Colors.black87;
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: bg,
+        elevation: 2,
+        borderRadius: BorderRadius.circular(4),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(4),
+          onTap: onPressed,
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Icon(icon, size: 22, color: fg),
+          ),
+        ),
       ),
     );
   }

@@ -90,6 +90,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 TextFormField(
                   controller: _passCtrl,
                   obscureText: !_showPass,
+                  autocorrect: false,
+                  enableSuggestions: false,
                   decoration: InputDecoration(
                     labelText: 'Senha',
                     prefixIcon: const Icon(Icons.lock),

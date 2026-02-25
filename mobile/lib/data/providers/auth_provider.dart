@@ -60,6 +60,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
       // Valida o token (e renova se expirado)
       final isValid = await _service.validateAndRefreshToken();
       if (!mounted) return;
+
+      // Não sobrescreve se o usuário já fez login manualmente durante este init
+      if (state.isLoggedIn) return;
+
       if (!isValid) {
         state = const AuthState(isLoggedIn: false, isLoading: false);
         return;
@@ -67,9 +71,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       final user = await _service.getUser();
       if (!mounted) return;
+      if (state.isLoggedIn) return;
       state = AuthState(isLoggedIn: true, isLoading: false, user: user);
     } catch (_) {
       if (!mounted) return;
+      if (state.isLoggedIn) return;
       state = const AuthState(isLoggedIn: false, isLoading: false);
     }
   }

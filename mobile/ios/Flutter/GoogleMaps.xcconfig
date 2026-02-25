@@ -1,7 +1,1 @@
-// Chave da API do Google Maps para iOS.
-// Obtenha em: https://console.cloud.google.com → APIs & Services → Credentials
-// Habilite: Maps SDK for iOS
-// Restrinja por Bundle ID: com.minhaturma.minhaTurma
-//
-// NÃO commite este arquivo se a chave for real.
-GOOGLE_MAPS_API_KEY=
+GOOGLE_MAPS_API_KEY=AIzaSyDYobgMznE2VP_77Ng2OXp9Z9HozrKYcww
