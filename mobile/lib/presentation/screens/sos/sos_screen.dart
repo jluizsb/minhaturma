@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
 import '../../../config/theme.dart';
 
 class SOSScreen extends StatelessWidget {
@@ -7,7 +9,13 @@ class SOSScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Emergência')),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.pop(),
+        ),
+        title: const Text('Emergência'),
+      ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -25,7 +33,10 @@ class SOSScreen extends StatelessWidget {
                 decoration: const BoxDecoration(color: AppTheme.danger, shape: BoxShape.circle),
                 child: const Column(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: [Icon(Icons.sos, size: 72, color: Colors.white), Text('SOS', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold))],
+                  children: [
+                    Icon(Icons.sos, size: 72, color: Colors.white),
+                    Text('SOS', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                  ],
                 ),
               ),
             ),

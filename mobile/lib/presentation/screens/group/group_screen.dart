@@ -44,7 +44,13 @@ class _GroupScreenState extends ConsumerState<GroupScreen>
     super.dispose();
   }
 
-  void _onGroupEntered() => context.go('/map');
+  void _onGroupEntered() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/map');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

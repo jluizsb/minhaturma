@@ -115,18 +115,18 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           IconButton(
             icon: const Icon(Icons.group),
             tooltip: 'Grupos',
-            onPressed: () => context.go('/group'),
+            onPressed: () => context.push('/group'),
           ),
           IconButton(
             icon: const Icon(Icons.chat),
             tooltip: 'Chat',
             onPressed: () => groupState.groups.isNotEmpty
-                ? context.go('/chat/${groupState.groups.first.id}')
+                ? context.push('/chat/${groupState.groups.first.id}')
                 : null,
           ),
           IconButton(
             icon: const Icon(Icons.person),
-            onPressed: () => context.go('/profile'),
+            onPressed: () => context.push('/profile'),
           ),
           IconButton(
             icon: const Icon(Icons.logout),
@@ -187,7 +187,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               ),
             ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.go('/sos'),
+        onPressed: () => context.push('/sos'),
         backgroundColor: AppTheme.danger,
         icon: const Icon(Icons.sos),
         label: const Text('SOS'),
