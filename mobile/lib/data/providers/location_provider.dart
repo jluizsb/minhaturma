@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/location_model.dart';
@@ -50,13 +51,11 @@ class LocationState {
 class LocationNotifier extends StateNotifier<LocationState> {
   final LocationService _service;
   StreamSubscription<LocationModel>? _sub;
-  String? _myUserId;
 
   LocationNotifier(this._service) : super(const LocationState());
 
   /// Conecta ao WebSocket e começa a ouvir posições do grupo.
   Future<void> connect(String token, String groupId, String myUserId) async {
-    _myUserId = myUserId;
     state = state.copyWith(clearError: true);
 
     try {
@@ -65,12 +64,14 @@ class LocationNotifier extends StateNotifier<LocationState> {
 
       _sub = _service.stream.listen((loc) {
         if (!mounted) return;
+        debugPrint('[LocationNotifier] Posição recebida: userId=${loc.userId} lat=${loc.lat} lng=${loc.lng} myId=$myUserId');
         if (loc.userId == myUserId) {
           state = state.copyWith(myPosition: loc);
         } else {
           final updated = Map<String, LocationModel>.from(state.members);
           updated[loc.userId] = loc;
           state = state.copyWith(members: updated);
+          debugPrint('[LocationNotifier] Membro atualizado: members.length=${updated.length}');
         }
       });
 
@@ -88,12 +89,18 @@ class LocationNotifier extends StateNotifier<LocationState> {
     _sub?.cancel();
     _sub = null;
     _service.disconnect();
-    state = state.copyWith(isConnected: false, clearPosition: true);
+    // Só atualiza o estado se o notifier ainda estiver ativo.
+    // Evita disparar notificações em widgets já descartados.
+    if (mounted) {
+      state = state.copyWith(isConnected: false, clearPosition: true);
+    }
   }
 
   @override
   void dispose() {
-    disconnect();
+    _sub?.cancel();
+    _sub = null;
+    _service.disconnect();
     super.dispose();
   }
 }

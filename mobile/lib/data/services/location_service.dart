@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -26,20 +27,22 @@ class LocationService {
     );
 
     _channel = WebSocketChannel.connect(uri);
+    debugPrint('[LocationService] Conectando a $uri');
 
     _channel!.stream.listen(
       (raw) {
+        debugPrint('[LocationService] Mensagem recebida: $raw');
         try {
           final data = jsonDecode(raw as String) as Map<String, dynamic>;
           if (data['type'] == 'location_update') {
             _locationController.add(LocationModel.fromJson(data));
           }
-        } catch (_) {
-          // ignora mensagens malformadas
+        } catch (e) {
+          debugPrint('[LocationService] Erro ao parsear mensagem: $e');
         }
       },
-      onDone: () {},
-      onError: (_) {},
+      onDone: () => debugPrint('[LocationService] WebSocket fechado (onDone)'),
+      onError: (e) => debugPrint('[LocationService] Erro WebSocket: $e'),
     );
   }
 

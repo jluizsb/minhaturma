@@ -27,7 +27,7 @@ dependencies:
   google_sign_in: ^6.2.1
   flutter_facebook_auth: ^7.0.1
   sign_in_with_apple: ^6.1.1
-  msal_flutter: ^2.0.1          # Microsoft
+  # msal_flutter: ^2.0.1        # Microsoft — adicionar quando implementar login social
 
   # Localização
   geolocator: ^11.0.0

@@ -67,12 +67,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   @override
   void dispose() {
-    // Captura o notifier antes de chamar super.dispose() para evitar
-    // uso de ref após o widget ser desmontado.
-    final locNotifier = ref.read(locationProvider.notifier);
     _mapController?.dispose();
     super.dispose();
-    locNotifier.disconnect();
+    // Não desconecta o WebSocket aqui: o ref já está inválido neste ponto
+    // (ConsumerStatefulElement marca _mounted=false antes de chamar dispose).
+    // O disconnect() é feito pelo botão de logout. O LocationNotifier.dispose()
+    // cuida da limpeza final quando o provider é destruído.
   }
 
   Set<Marker> _buildMarkers(LocationState locState, String? myUserId) {
